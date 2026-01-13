@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Metrics Dashboard</title>
+
+<style>
+/* =========================
+   DESIGN SYSTEM (v1.0)
+   ========================= */
+:root {
+  --bg: #050713;
+  --panel: rgba(18,22,55,0.85);
+  --border: rgba(255,255,255,0.08);
+  --text: #f5f7ff;
+  --text2: #9ca3c7;
+  --blue: #00d4ff;
+  --error: #ef4444;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+img { max-width: 100%; display: block; }
+
+/* =========================
+   HEADER
+   ========================= */
+header {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo { font-weight: 700; color: var(--blue); }
+
+.lang-switch {
+  display: flex;
+  gap: 6px;
+}
+
+.lang-switch button {
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text2);
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+
+.lang-switch button.active {
+  border-color: var(--blue);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(0,212,255,.4);
+}
+
+/* =========================
+   COLUMNS / CARDS
+   ========================= */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  padding: 10px;
+}
+
+.column {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 70px);
+  transition: all .25s ease;
+}
+
+.column:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0,212,255,.6);
+  box-shadow: 0 12px 30px rgba(0,0,0,.6);
+}
+
+.col-title {
+  padding: 10px;
+  font-size: .8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--blue);
+  border-bottom: 1px solid var(--border);
+}
+
+.col-body {
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.card {
+  background: linear-gradient(135deg, rgba(20,25,60,.75), rgba(10,15,40,.75));
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: .9rem;
+  margin-bottom: .6rem;
+  cursor: pointer;
+  transition: all .25s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0,212,255,.6);
+  box-shadow: 0 12px 30px rgba(0,0,0,.6);
+}
+
+.card-title { font-weight: 600; font-size: .75rem; }
+.card-text  { font-size: .75rem; color: var(--text2); }
+
+/* =========================
+   MODAL
+   ========================= */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.active { display: flex; }
+
+.modal-content {
+  width: 96vw;
+  height: 96vh;
+  max-width: 1600px;
+  background: var(--panel);
+  border-radius: 1rem;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  overflow: hidden;
+}
+
+.modal-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--error);
+  color: #fff;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .columns { grid-template-columns: 1fr; }
+  .modal-content { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo">CRYPTOMETRICS RG</div>
+  <div class="lang-switch">
+    <button data-lang="en">EN</button>
+    <button data-lang="ru">RU</button>
+    <button data-lang="si">SI</button>
+  </div>
+</header>
+
+<div class="columns" id="columns"></div>
+
+<!-- CARD MODAL -->
+<div class="modal" id="viewModal">
+  <button class="modal-close" id="closeView">✕</button>
+  <div class="modal-content">
+    <div style="padding:20px">
+      <img id="viewImg">
+      <div id="viewExtra"></div>
+    </div>
+    <div style="padding:20px; overflow:auto">
+      <h2 id="viewTitle"></h2>
+      <p id="viewText"></p>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+/* =========================
+   STORE
+   ========================= */
+const Store = (() => {
+  let state = {
+    lang: localStorage.getItem('lang') || 'en',
+    columns: {
+      research: [],
+      global: [],
+      recession: [],
+      market: [],
+      onchain: [],
+      network: []
+    },
+    modal: { card: null }
+  };
+
+  const listeners = new Set();
+
+  return {
+    get: () => state,
+    set: patch => {
+      state = { ...state, ...patch };
+      listeners.forEach(fn => fn(state));
+    },
+    subscribe: fn => listeners.add(fn)
+  };
+})();
+
+/* =========================
+   SERVICES
+   ========================= */
+const DataService = {
+  async load() {
+    try {
+      const res = await fetch('data.json');
+      return await res.json();
+    } catch {
+      return {};
+    }
+  }
+};
+
+const LangService = {
+  save: lang => localStorage.setItem('lang', lang)
+};
+
+/* =========================
+   APPLICATION
+   ========================= */
+const Dashboard = {
+  async init() {
+    const data = await DataService.load();
+    Store.set({ columns: { ...Store.get().columns, ...data } });
+  },
+
+  changeLang(lang) {
+    LangService.save(lang);
+    Store.set({ lang });
+  },
+
+  openCard(col, index) {
+    Store.set({ modal: { card: Store.get().columns[col][index] } });
+  },
+
+  closeModal() {
+    Store.set({ modal: { card: null } });
+  }
+};
+
+/* =========================
+   UI
+   ========================= */
+const UI = (() => {
+  const root = document.getElementById('columns');
+  const modal = document.getElementById('viewModal');
+
+  const img   = document.getElementById('viewImg');
+  const title = document.getElementById('viewTitle');
+  const text  = document.getElementById('viewText');
+  const extra = document.getElementById('viewExtra');
+
+  const titles = {
+    research: 'Research',
+    global: 'Global M2 Metrics',
+    recession: 'Recession Metrics',
+    market: 'Market Metrics',
+    onchain: 'Onchain Metrics',
+    network: 'Network Metrics'
+  };
+
+  function render(state) {
+    root.innerHTML = '';
+
+    Object.entries(state.columns).forEach(([id, cards]) => {
+      const col = document.createElement('div');
+      col.className = 'column';
+      col.innerHTML = `<div class="col-title">${titles[id]}</div><div class="col-body"></div>`;
+      const body = col.querySelector('.col-body');
+
+      cards.forEach((c, i) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.col = id;
+        card.dataset.index = i;
+        card.innerHTML = `
+          <div class="card-title">${c.title?.[state.lang]}</div>
+          <div class="card-text">${c.text?.[state.lang]}</div>
+        `;
+        body.appendChild(card);
+      });
+
+      root.appendChild(col);
+    });
+
+    if (state.modal.card) {
+      const c = state.modal.card;
+      img.src = c.image || '';
+      title.textContent = c.title?.[state.lang];
+      text.textContent  = c.text?.[state.lang];
+      extra.textContent = c.extra?.[state.lang];
+      modal.classList.add('active');
+    } else {
+      modal.classList.remove('active');
+    }
+
+    document.querySelectorAll('.lang-switch button')
+      .forEach(b => b.classList.toggle('active', b.dataset.lang === state.lang));
+  }
+
+  return { render };
+})();
+
+/* =========================
+   BOOTSTRAP
+   ========================= */
+document.addEventListener('DOMContentLoaded', async () => {
+  Store.subscribe(UI.render);
+  await Dashboard.init();
+  UI.render(Store.get());
+
+  document.addEventListener('click', e => {
+    const card = e.target.closest('.card');
+    if (card) Dashboard.openCard(card.dataset.col, card.dataset.index);
+
+    if (e.target.id === 'closeView' || e.target === viewModal) {
+      Dashboard.closeModal();
+    }
+
+    const langBtn = e.target.closest('[data-lang]');
+    if (langBtn) Dashboard.changeLang(langBtn.dataset.lang);
+  });
+});
+</script>
+
+</body>
+</html>
