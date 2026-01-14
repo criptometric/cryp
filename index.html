@@ -332,10 +332,15 @@ const UI = (() => {
         card.dataset.col = id;
         card.dataset.index = i;
         card.innerHTML = `
-          <div class="card-title">${c.title?.[state.lang]}</div>
-          <div class="card-text">${c.text?.[state.lang]}</div>
-        `;
-        body.appendChild(card);
+  <div class="card-title">${c.title?.[state.lang]}</div>
+  ${c.image ? `
+    <div class="thumb">
+      <img src="${c.image}" loading="lazy">
+    </div>
+  ` : ``}
+  <div class="card-text">${c.text?.[state.lang]}</div>
+`;
+         body.appendChild(card);
       });
 
       root.appendChild(col);
