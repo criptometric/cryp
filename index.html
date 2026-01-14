@@ -107,6 +107,21 @@ header {
   overflow-y: auto;
 }
 
+/* hide scrollbars but keep scroll */
+.col-body,
+.modal-text,
+.modal-img-bottom {
+  -ms-overflow-style: none;   /* IE + Edge legacy */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.col-body::-webkit-scrollbar,
+.modal-text::-webkit-scrollbar,
+.modal-img-bottom::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}   
+
 .card {
   background: linear-gradient(135deg, rgba(20,25,60,.75), rgba(10,15,40,.75));
   border: 1px solid var(--border);
